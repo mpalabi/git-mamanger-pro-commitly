@@ -1,0 +1,160 @@
+import Fastify from 'fastify';
+import cors from '@fastify/cors';
+import staticFiles from '@fastify/static';
+import websocket from '@fastify/websocket';
+import path from 'path';
+import { ConfigManager } from '../lib/config';
+import { ProjectService } from './services/projectService';
+import { GitService } from './services/gitService';
+import { WatcherService } from './services/watcherService';
+
+const fastify = Fastify({
+  logger: {
+    level: 'info'
+  }
+});
+
+// Register plugins
+fastify.register(cors, {
+  origin: true
+});
+
+fastify.register(websocket);
+
+// Serve static files from client build
+fastify.register(staticFiles, {
+  root: path.join(__dirname, '../client/dist'),
+  prefix: '/'
+});
+
+// Initialize services
+const configManager = new ConfigManager();
+const projectService = new ProjectService(configManager);
+const watcherService = new WatcherService(configManager);
+
+// API Routes
+fastify.register(async function (fastify) {
+  // System status
+  fastify.get('/api/status', async (request, reply) => {
+    return {
+      status: 'running',
+      timestamp: new Date().toISOString(),
+      version: '1.0.0'
+    };
+  });
+
+  // Projects
+  fastify.get('/api/projects', async (request, reply) => {
+    return await projectService.getAllProjects();
+  });
+
+  fastify.get('/api/projects/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    return await projectService.getProject(id);
+  });
+
+  fastify.get('/api/projects/:id/status', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    return await projectService.getProjectStatus(id);
+  });
+
+  // Git operations
+  fastify.get('/api/projects/:id/git/status', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    return await projectService.getGitStatus(id);
+  });
+
+  fastify.get('/api/projects/:id/git/branches', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    return await projectService.getBranches(id);
+  });
+
+  fastify.get('/api/projects/:id/git/commits', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { limit = 10 } = request.query as { limit?: number };
+    return await projectService.getCommits(id, limit);
+  });
+
+  fastify.post('/api/projects/:id/git/checkout', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { branch } = request.body as { branch: string };
+    return await projectService.checkoutBranch(id, branch);
+  });
+
+  fastify.post('/api/projects/:id/git/commit', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { message, files } = request.body as { message: string; files?: string[] };
+    return await projectService.commit(id, message, files);
+  });
+
+  fastify.post('/api/projects/:id/git/pull', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    return await projectService.pull(id);
+  });
+
+  fastify.post('/api/projects/:id/git/push', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { branch } = request.body as { branch?: string };
+    return await projectService.push(id, branch);
+  });
+
+  // WebSocket for real-time updates
+  fastify.register(async function (fastify) {
+    fastify.get('/ws', { websocket: true }, (connection, req) => {
+      connection.socket.on('message', (message) => {
+        try {
+          const data = JSON.parse(message.toString());
+          console.log('WebSocket message:', data);
+        } catch (error) {
+          console.error('Invalid WebSocket message:', error);
+        }
+      });
+
+      connection.socket.on('close', () => {
+        console.log('WebSocket connection closed');
+      });
+    });
+  });
+});
+
+// Catch all handler for SPA routing
+fastify.setNotFoundHandler((request, reply) => {
+  if (request.url.startsWith('/api/')) {
+    reply.code(404).send({ error: 'API endpoint not found' });
+  } else {
+    // Serve index.html for client-side routing
+    reply.sendFile('index.html');
+  }
+});
+
+// Start server
+const start = async () => {
+  try {
+    const config = await configManager.getConfig();
+    const port = parseInt(process.env.PORT || config.server.port.toString());
+    const host = process.env.HOST || config.server.host;
+
+    await fastify.listen({ port, host });
+    
+    console.log(`🌐 Git Manager Pro running on http://${host}:${port}`);
+    console.log(`📊 API available at http://${host}:${port}/api`);
+    console.log(`🔌 WebSocket available at ws://${host}:${port}/ws`);
+
+    // Start file watchers for all projects
+    await watcherService.startWatching();
+
+  } catch (err) {
+    fastify.log.error(err);
+    process.exit(1);
+  }
+};
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  console.log('\n🛑 Shutting down Git Manager Pro...');
+  await watcherService.stopWatching();
+  await fastify.close();
+  process.exit(0);
+});
+
+start();
