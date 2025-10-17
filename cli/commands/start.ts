@@ -28,8 +28,8 @@ export async function start(options: StartOptions): Promise<void> {
     }
 
     // Start the server
-    const serverPath = path.join(__dirname, '../../server/index.ts');
-    const server: ChildProcess = spawn('npx', ['ts-node', serverPath], {
+    const serverPath = path.join(__dirname, '../../server/index.js');
+    const server: ChildProcess = spawn('node', [serverPath], {
       stdio: 'inherit',
       env: { 
         ...process.env, 

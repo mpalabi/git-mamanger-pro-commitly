@@ -18,6 +18,32 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true
-  }
+    sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          router: ['react-router-dom'],
+          query: ['@tanstack/react-query'],
+          editor: ['@tiptap/react', '@tiptap/starter-kit'],
+          animations: ['framer-motion'],
+          ui: ['lucide-react'],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 1000,
+  },
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'react-router-dom',
+      '@tanstack/react-query',
+      'axios',
+      'framer-motion',
+      'lucide-react',
+      '@tiptap/react',
+      '@tiptap/starter-kit',
+    ],
+  },
 });

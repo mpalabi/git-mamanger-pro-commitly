@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { GitBranch, Settings, Search } from 'lucide-react';
+import { Breadcrumb } from './ui/Breadcrumb';
 
 interface LayoutProps {
   children: ReactNode;
@@ -29,6 +30,11 @@ export function Layout({ children }: LayoutProps) {
               <Settings className="h-5 w-5" />
             </button>
           </div>
+        </div>
+        
+        {/* Breadcrumb Navigation */}
+        <div className="border-t border-border bg-muted/30 px-6 py-3">
+          <Breadcrumb />
         </div>
       </header>
 

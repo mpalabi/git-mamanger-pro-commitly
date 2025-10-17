@@ -7,6 +7,11 @@ import { ConfigManager } from '../lib/config';
 import { ProjectService } from './services/projectService';
 import { GitService } from './services/gitService';
 import { WatcherService } from './services/watcherService';
+import { TaskService } from './services/taskService';
+import { DiffService } from './services/diffService';
+import { MetricsService } from './services/metricsService';
+import { MilestoneService } from './services/milestoneService';
+import { SettingsService } from './services/settingsService';
 
 const fastify = Fastify({
   logger: {
@@ -23,7 +28,7 @@ fastify.register(websocket);
 
 // Serve static files from client build
 fastify.register(staticFiles, {
-  root: path.join(__dirname, '../client/dist'),
+  root: path.join(__dirname, '../../client/dist'),
   prefix: '/'
 });
 
@@ -31,6 +36,11 @@ fastify.register(staticFiles, {
 const configManager = new ConfigManager();
 const projectService = new ProjectService(configManager);
 const watcherService = new WatcherService(configManager);
+const taskService = new TaskService(configManager);
+const diffService = new DiffService(configManager);
+const metricsService = new MetricsService(configManager);
+const milestoneService = new MilestoneService(configManager);
+const settingsService = new SettingsService(configManager);
 
 // API Routes
 fastify.register(async function (fastify) {
@@ -96,6 +106,86 @@ fastify.register(async function (fastify) {
     const { id } = request.params as { id: string };
     const { branch } = request.body as { branch?: string };
     return await projectService.push(id, branch);
+  });
+
+  // Task Management API
+  fastify.get('/api/projects/:id/tasks', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    return await taskService.getTasks(id);
+  });
+
+  fastify.get('/api/projects/:id/tasks/:taskId', async (request, reply) => {
+    const { id, taskId } = request.params as { id: string; taskId: string };
+    return await taskService.getTask(id, taskId);
+  });
+
+  fastify.post('/api/projects/:id/tasks', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const taskData = request.body as any;
+    return await taskService.createTask(id, taskData);
+  });
+
+  fastify.put('/api/projects/:id/tasks/:taskId', async (request, reply) => {
+    const { id, taskId } = request.params as { id: string; taskId: string };
+    const updates = request.body as any;
+    return await taskService.updateTask(id, taskId, updates);
+  });
+
+  fastify.delete('/api/projects/:id/tasks/:taskId', async (request, reply) => {
+    const { id, taskId } = request.params as { id: string; taskId: string };
+    await taskService.deleteTask(id, taskId);
+    return { success: true };
+  });
+
+  fastify.post('/api/projects/:id/tasks/:taskId/commits', async (request, reply) => {
+    const { id, taskId } = request.params as { id: string; taskId: string };
+    const { commitHash } = request.body as { commitHash: string };
+    return await taskService.linkCommitToTask(id, taskId, commitHash);
+  });
+
+  fastify.delete('/api/projects/:id/tasks/:taskId/commits/:commitHash', async (request, reply) => {
+    const { id, taskId, commitHash } = request.params as { id: string; taskId: string; commitHash: string };
+    return await taskService.unlinkCommitFromTask(id, taskId, commitHash);
+  });
+
+  // Code Diff API
+  fastify.get('/api/projects/:id/git/commits/:commitHash/diff', async (request, reply) => {
+    const { id, commitHash } = request.params as { id: string; commitHash: string };
+    return await diffService.getCommitDiff(id, commitHash);
+  });
+
+  fastify.get('/api/projects/:id/git/diff', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { file, base } = request.query as { file: string; base?: string };
+    return await diffService.getFileDiff(id, file, base);
+  });
+
+  // Project Management API
+  fastify.get('/api/projects/:id/metrics', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    return await metricsService.getProjectMetrics(id);
+  });
+
+  fastify.get('/api/projects/:id/milestones', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    return await milestoneService.getMilestones(id);
+  });
+
+  fastify.post('/api/projects/:id/milestones', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const milestoneData = request.body as any;
+    return await milestoneService.createMilestone(id, milestoneData);
+  });
+
+  fastify.get('/api/projects/:id/settings', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    return await settingsService.getProjectSettings(id);
+  });
+
+  fastify.put('/api/projects/:id/settings', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const settings = request.body as any;
+    return await settingsService.updateProjectSettings(id, settings);
   });
 
   // WebSocket for real-time updates
