@@ -19,46 +19,9 @@ export class TaskService {
       throw new Error('Project not found');
     }
 
-    const tasks = this.db.getTasks(projectId);
-    
-    // If no tasks exist, create some sample tasks
-    if (tasks.length === 0) {
-      const sampleTasks = this.createSampleTasks(projectId);
-      return sampleTasks;
-    }
-    
-    return tasks;
+    return this.db.getTasks(projectId);
   }
 
-  private createSampleTasks(projectId: string): Task[] {
-    const task1 = this.db.createTask(projectId, {
-      title: 'Implement user authentication',
-      description: '<p>Add JWT-based authentication system with login/logout functionality.</p><ul><li>Create login form</li><li>Implement JWT tokens</li><li>Add protected routes</li></ul>',
-      status: 'in-progress',
-      priority: 'high',
-      assignee: 'Developer',
-      tags: ['auth', 'security', 'frontend'],
-      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-    });
-
-    const task2 = this.db.createTask(projectId, {
-      title: 'Fix responsive design issues',
-      description: '<p>Address mobile responsiveness problems in the dashboard.</p>',
-      status: 'todo',
-      priority: 'medium',
-      tags: ['ui', 'responsive', 'mobile']
-    });
-
-    const task3 = this.db.createTask(projectId, {
-      title: 'Add unit tests',
-      description: '<p>Implement comprehensive unit tests for core functionality.</p>',
-      status: 'done',
-      priority: 'medium',
-      tags: ['testing', 'quality']
-    });
-
-    return [task1, task2, task3];
-  }
 
   async getTask(projectId: string, taskId: string): Promise<Task> {
     const task = this.db.getTask(projectId, taskId);

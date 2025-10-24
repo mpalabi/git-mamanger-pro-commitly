@@ -1,0 +1,41 @@
+# Exclude source TypeScript and dev files from the npm package
+# We publish only built output under dist/ and client/dist/
+
+# Node modules
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Source code and configs (published via compiled dist instead)
+server/
+client/
+!client/dist/
+cli/
+lib/
+
+# Build configs and tooling
+scripts/
+*.config.js
+*.config.cjs
+*.config.mjs
+vite.config.*
+tsconfig*.json
+postcss.config.js
+
+# Tests and coverage
+coverage/
+__tests__/
+*.spec.*
+*.test.*
+
+# VCS and editor files
+.git/
+.github/
+.vscode/
+.idea/
+
+# Misc
+.env*
+*.log
+.cache/
+parcel-cache/

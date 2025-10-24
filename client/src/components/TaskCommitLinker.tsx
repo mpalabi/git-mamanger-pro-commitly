@@ -166,6 +166,11 @@ export const TaskCommitLinker: React.FC<TaskCommitLinkerProps> = ({ projectId })
     }
   };
 
+  const stripHtmlTags = (html: string) => {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return doc.body.textContent || '';
+  };
+
   return (
     <div className="h-full flex bg-background w-full">
       {/* Left Column - Tasks */}
@@ -179,24 +184,8 @@ export const TaskCommitLinker: React.FC<TaskCommitLinkerProps> = ({ projectId })
             </div>
             <button
               onClick={() => {
-                // Create a new empty task and open modal
-                const newTask: Task = {
-                  id: Date.now().toString(),
-                  title: 'New Task',
-                  description: '',
-                  status: 'todo',
-                  priority: 'medium',
-                  assignee: '',
-                  tags: [],
-                  createdAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString(),
-                  dueDate: '',
-                  projectId: projectId,
-                  commits: [],
-                  subtasks: [],
-                  attachments: []
-                };
-                setTaskToEdit(newTask);
+                // Open modal for creating a new task (pass null to indicate new task)
+                setTaskToEdit(null);
                 setTaskModalOpen(true);
               }}
               className="flex items-center gap-2 px-3 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-all text-sm font-medium"
@@ -262,7 +251,7 @@ export const TaskCommitLinker: React.FC<TaskCommitLinkerProps> = ({ projectId })
                 
                 {task.description && (
                   <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
-                    {task.description}
+                    {stripHtmlTags(task.description)}
                   </p>
                 )}
                 
@@ -614,6 +603,10 @@ export const TaskCommitLinker: React.FC<TaskCommitLinkerProps> = ({ projectId })
         onSave={(updatedTask) => {
           // Update the selected task if it's the one being edited
           if (selectedTask?.id === updatedTask.id) {
+            setSelectedTask(updatedTask);
+          }
+          // If it's a new task (taskToEdit was null), select it
+          if (!taskToEdit) {
             setSelectedTask(updatedTask);
           }
         }}

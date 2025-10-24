@@ -67,46 +67,51 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const [newIssue, setNewIssue] = useState<Partial<Issue>>({});
   const [showNewIssue, setShowNewIssue] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['details', 'subtasks']));
+  const [newTag, setNewTag] = useState('');
 
   const queryClient = useQueryClient();
 
-  // Mock data for comments and issues (in real app, these would come from API)
-  const [comments, setComments] = useState<Comment[]>([
-    {
-      id: '1',
-      content: 'This task looks good to go. Let me know if you need any help with the implementation.',
-      author: 'John Doe',
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: '2',
-      content: 'I\'ve started working on this. Should be done by end of week.',
-      author: 'Jane Smith',
-      createdAt: new Date(Date.now() - 86400000).toISOString()
-    }
-  ]);
-
-  const [issues, setIssues] = useState<Issue[]>([
-    {
-      id: '1',
-      title: 'Performance issue in data loading',
-      description: 'The data loading is taking too long on mobile devices',
-      type: 'bug',
-      priority: 'high',
-      status: 'open',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    }
-  ]);
+  // Comments and issues will be managed per task (empty by default)
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [issues, setIssues] = useState<Issue[]>([]);
 
   useEffect(() => {
     if (task) {
       setEditedTask({ ...task });
       setIsEditing(false);
+    } else {
+      // Create a new task template when task is null
+      const newTask: Task = {
+        id: Date.now().toString(), // Temporary ID
+        title: 'New Task',
+        description: '',
+        status: 'todo',
+        priority: 'medium',
+        assignee: '',
+        tags: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        dueDate: '',
+        projectId: projectId,
+        commits: [],
+        subtasks: [],
+        attachments: []
+      };
+      setEditedTask(newTask);
+      setIsEditing(true); // Start in editing mode for new tasks
     }
-  }, [task]);
+  }, [task, projectId]);
 
   // Mutations
+  const createTaskMutation = useMutation({
+    mutationFn: (newTask: Task) => api.createTask(projectId, newTask),
+    onSuccess: (createdTask) => {
+      onSave(createdTask);
+      setIsEditing(false);
+      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+    },
+  });
+
   const updateTaskMutation = useMutation({
     mutationFn: (updatedTask: Task) => api.updateTask(projectId, updatedTask.id, updatedTask),
     onSuccess: (updatedTask) => {
@@ -136,7 +141,14 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
   const handleSave = () => {
     if (editedTask) {
-      updateTaskMutation.mutate(editedTask);
+      // Check if this is a new task (no original task) or an existing task
+      if (!task) {
+        // Creating a new task
+        createTaskMutation.mutate(editedTask);
+      } else {
+        // Updating an existing task
+        updateTaskMutation.mutate(editedTask);
+      }
     }
   };
 
@@ -225,6 +237,25 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     });
   };
 
+  const addTag = () => {
+    if (newTag.trim() && editedTask && !editedTask.tags.includes(newTag.trim())) {
+      setEditedTask(prev => prev ? { 
+        ...prev, 
+        tags: [...prev.tags, newTag.trim()] 
+      } : null);
+      setNewTag('');
+    }
+  };
+
+  const removeTag = (tagToRemove: string) => {
+    if (editedTask) {
+      setEditedTask(prev => prev ? { 
+        ...prev, 
+        tags: prev.tags.filter(tag => tag !== tagToRemove) 
+      } : null);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'done': return 'text-green-400 bg-green-500/10 border-green-500/20';
@@ -252,15 +283,16 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     }
   };
 
-  if (!isOpen || !task) return null;
+  if (!isOpen) return null;
 
   return (
     <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
         onClick={onClose}
       >
         <motion.div
@@ -275,7 +307,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-6 w-6 text-primary" />
-                <span className="text-sm text-muted-foreground">TASK-{task.id.substring(0, 8).toUpperCase()}</span>
+                <span className="text-sm text-muted-foreground">TASK-{editedTask?.id.substring(0, 8).toUpperCase()}</span>
               </div>
               {isEditing ? (
                 <input
@@ -286,7 +318,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                   autoFocus
                 />
               ) : (
-                <h1 className="text-xl font-semibold text-foreground">{task.title}</h1>
+                <h1 className="text-xl font-semibold text-foreground">{editedTask?.title}</h1>
               )}
             </div>
             
@@ -377,8 +409,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                               <option value="done">Done</option>
                             </select>
                           ) : (
-                            <span className={`px-2 py-1 text-xs rounded-full border ${getStatusColor(task.status)}`}>
-                              {task.status.replace('-', ' ')}
+                            <span className={`px-2 py-1 text-xs rounded-full border ${getStatusColor(editedTask?.status || 'todo')}`}>
+                              {editedTask?.status.replace('-', ' ')}
                             </span>
                           )}
                         </div>
@@ -397,8 +429,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                               <option value="urgent">Urgent</option>
                             </select>
                           ) : (
-                            <span className={`text-sm ${getPriorityColor(task.priority)}`}>
-                              {task.priority}
+                            <span className={`text-sm ${getPriorityColor(editedTask?.priority || 'medium')}`}>
+                              {editedTask?.priority}
                             </span>
                           )}
                         </div>
@@ -415,7 +447,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                           />
                         ) : (
                           <div className="prose prose-sm max-w-none text-foreground">
-                            <div dangerouslySetInnerHTML={{ __html: task.description }} />
+                            <div dangerouslySetInnerHTML={{ __html: editedTask?.description || '' }} />
                           </div>
                         )}
                       </div>
@@ -434,7 +466,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                               className="px-3 py-1 bg-background border border-input rounded-md text-sm"
                             />
                           ) : (
-                            <span className="text-sm text-foreground">{task.assignee || 'Unassigned'}</span>
+                            <span className="text-sm text-foreground">{editedTask?.assignee || 'Unassigned'}</span>
                           )}
                         </div>
                         
@@ -450,7 +482,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                             />
                           ) : (
                             <span className="text-sm text-foreground">
-                              {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No due date'}
+                              {editedTask?.dueDate ? new Date(editedTask.dueDate).toLocaleDateString() : 'No due date'}
                             </span>
                           )}
                         </div>
@@ -460,15 +492,41 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                       <div className="space-y-2">
                         <span className="text-sm font-medium text-foreground">Tags</span>
                         <div className="flex flex-wrap gap-2">
-                          {task.tags.map((tag, index) => (
+                          {(editedTask?.tags || []).map((tag, index) => (
                             <span
                               key={index}
-                              className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-md border border-primary/20"
+                              className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-md border border-primary/20 flex items-center gap-1"
                             >
                               {tag}
+                              {isEditing && (
+                                <button
+                                  onClick={() => removeTag(tag)}
+                                  className="ml-1 text-primary/70 hover:text-red-400"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              )}
                             </span>
                           ))}
                         </div>
+                        {isEditing && (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={newTag}
+                              onChange={(e) => setNewTag(e.target.value)}
+                              onKeyPress={(e) => e.key === 'Enter' && addTag()}
+                              placeholder="Add a tag..."
+                              className="px-3 py-1 bg-background border border-input rounded-md text-sm flex-1"
+                            />
+                            <button
+                              onClick={addTag}
+                              className="px-3 py-1 bg-primary text-primary-foreground rounded-md text-sm hover:bg-primary/90"
+                            >
+                              Add
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </motion.div>
                   )}
@@ -486,7 +544,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                       ) : (
                         <ChevronRight className="h-5 w-5" />
                       )}
-                      Subtasks ({task.subtasks.length})
+                      Subtasks ({editedTask?.subtasks.length || 0})
                     </button>
                     {isEditing && (
                       <button
@@ -526,7 +584,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                       )}
                       
                       {/* Subtasks list */}
-                      {task.subtasks.map((subtask) => (
+                      {(editedTask?.subtasks || []).map((subtask) => (
                         <div key={subtask.id} className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg border border-border">
                           <button
                             onClick={() => handleToggleSubtask(subtask.id)}
@@ -746,7 +804,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                       ) : (
                         <ChevronRight className="h-5 w-5" />
                       )}
-                      Linked Commits ({task.commits.length})
+                      Linked Commits ({editedTask?.commits.length || 0})
                     </button>
                   </div>
                   
@@ -757,7 +815,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                       exit={{ opacity: 0, height: 0 }}
                       className="space-y-3"
                     >
-                      {task.commits.map((commit) => (
+                      {(editedTask?.commits || []).map((commit) => (
                         <div key={commit.id} className="p-4 bg-muted/30 rounded-lg border border-border">
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
@@ -773,7 +831,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                               </div>
                             </div>
                             <button
-                              onClick={() => unlinkCommitMutation.mutate({ taskId: task.id, commitHash: commit.commitHash })}
+                              onClick={() => unlinkCommitMutation.mutate({ taskId: editedTask?.id || '', commitHash: commit.commitHash })}
                               className="p-1 text-red-400 hover:bg-red-400/10 rounded"
                               title="Unlink commit"
                             >
@@ -798,7 +856,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                       ) : (
                         <ChevronRight className="h-5 w-5" />
                       )}
-                      Attachments ({task.attachments.length})
+                      Attachments ({editedTask?.attachments.length || 0})
                     </button>
                     <button className="p-2 text-primary hover:bg-primary/10 rounded-md">
                       <Paperclip className="h-4 w-4" />
@@ -812,7 +870,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                       exit={{ opacity: 0, height: 0 }}
                       className="space-y-3"
                     >
-                      {task.attachments.length === 0 ? (
+                      {(editedTask?.attachments.length || 0) === 0 ? (
                         <div className="text-center py-8 text-muted-foreground">
                           <Paperclip className="h-12 w-12 mx-auto mb-3 opacity-50" />
                           <p>No attachments yet</p>
@@ -820,7 +878,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                         </div>
                       ) : (
                         <div className="grid grid-cols-2 gap-3">
-                          {task.attachments.map((attachment) => (
+                          {(editedTask?.attachments || []).map((attachment) => (
                             <div key={attachment.id} className="p-3 bg-muted/30 rounded-lg border border-border">
                               <div className="flex items-center gap-2">
                                 <FileText className="h-4 w-4 text-muted-foreground" />
@@ -874,16 +932,16 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Created:</span>
-                      <span className="text-foreground">{new Date(task.createdAt).toLocaleDateString()}</span>
+                      <span className="text-foreground">{new Date(editedTask?.createdAt || '').toLocaleDateString()}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Updated:</span>
-                      <span className="text-foreground">{new Date(task.updatedAt).toLocaleDateString()}</span>
+                      <span className="text-foreground">{new Date(editedTask?.updatedAt || '').toLocaleDateString()}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Subtasks:</span>
                       <span className="text-foreground">
-                        {task.subtasks.filter(s => s.completed).length}/{task.subtasks.length}
+                        {(editedTask?.subtasks || []).filter(s => s.completed).length}/{(editedTask?.subtasks || []).length}
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -896,7 +954,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Commits:</span>
-                      <span className="text-foreground">{task.commits.length}</span>
+                      <span className="text-foreground">{editedTask?.commits.length || 0}</span>
                     </div>
                   </div>
                 </div>
@@ -908,8 +966,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Subtasks</span>
                       <span className="text-foreground">
-                        {task.subtasks.length > 0 
-                          ? Math.round((task.subtasks.filter(s => s.completed).length / task.subtasks.length) * 100)
+                        {(editedTask?.subtasks.length || 0) > 0
+                          ? Math.round(((editedTask?.subtasks || []).filter(s => s.completed).length / (editedTask?.subtasks.length || 1)) * 100)
                           : 0}%
                       </span>
                     </div>
@@ -917,8 +975,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                       <div 
                         className="bg-primary h-2 rounded-full transition-all duration-300"
                         style={{ 
-                          width: `${task.subtasks.length > 0 
-                            ? (task.subtasks.filter(s => s.completed).length / task.subtasks.length) * 100
+                          width: `${(editedTask?.subtasks.length || 0) > 0
+                            ? ((editedTask?.subtasks || []).filter(s => s.completed).length / (editedTask?.subtasks.length || 1)) * 100
                             : 0}%` 
                         }}
                       />
@@ -930,6 +988,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           </div>
         </motion.div>
       </motion.div>
+      )}
     </AnimatePresence>
   );
 };

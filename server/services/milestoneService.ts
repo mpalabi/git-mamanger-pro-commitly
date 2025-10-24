@@ -18,44 +18,9 @@ export class MilestoneService {
       throw new Error('Project not found');
     }
 
-    const milestones = this.db.getMilestones(projectId);
-    
-    // If no milestones exist, create some sample milestones
-    if (milestones.length === 0) {
-      const sampleMilestones = this.createSampleMilestones(projectId);
-      return sampleMilestones;
-    }
-    
-    return milestones;
+    return this.db.getMilestones(projectId);
   }
 
-  private createSampleMilestones(projectId: string): ProjectMilestone[] {
-    const milestone1 = this.db.createMilestone(projectId, {
-      title: 'MVP Release',
-      description: 'Initial version with core functionality',
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      status: 'in-progress',
-      tasks: []
-    });
-
-    const milestone2 = this.db.createMilestone(projectId, {
-      title: 'Authentication System',
-      description: 'Complete user authentication and authorization',
-      dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-      status: 'upcoming',
-      tasks: []
-    });
-
-    const milestone3 = this.db.createMilestone(projectId, {
-      title: 'UI/UX Improvements',
-      description: 'Enhanced user interface and user experience',
-      dueDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-      status: 'completed',
-      tasks: []
-    });
-
-    return [milestone1, milestone2, milestone3];
-  }
 
   async createMilestone(projectId: string, milestoneData: Partial<ProjectMilestone>): Promise<ProjectMilestone> {
     const config = await this.configManager.getConfig();

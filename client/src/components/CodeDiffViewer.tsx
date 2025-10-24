@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, 
@@ -8,7 +8,9 @@ import {
   Copy,
   Download,
   Eye,
-  EyeOff
+  EyeOff,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import { CodeDiff, DiffChange } from '../types';
 import { SplitText, SplitTextPresets } from './ui/SplitText';
@@ -28,10 +30,24 @@ export const CodeDiffViewer: React.FC<CodeDiffViewerProps> = ({
     diffs.length > 0 ? diffs[0].file : null
   );
   const [showLineNumbers, setShowLineNumbers] = useState(true);
+  const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
 
-  const selectedDiff = useMemo(() => {
-    return diffs.find(diff => diff.file === selectedFile);
-  }, [diffs, selectedFile]);
+
+  const toggleFileCollapse = (fileName: string) => {
+    setCollapsedFiles(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(fileName)) {
+        newSet.delete(fileName);
+      } else {
+        newSet.add(fileName);
+      }
+      return newSet;
+    });
+  };
+
+  const isFileCollapsed = (fileName: string) => {
+    return collapsedFiles.has(fileName);
+  };
 
 
   const copyToClipboard = (text: string) => {
@@ -159,100 +175,114 @@ export const CodeDiffViewer: React.FC<CodeDiffViewerProps> = ({
 
       {/* Diff Content */}
       <div className="flex-1 overflow-hidden">
-        <AnimatePresence mode="wait">
-          {selectedDiff && (
-            <motion.div
-              key={selectedDiff.file}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.2 }}
-              className="h-full overflow-auto"
-            >
-              <div className="p-4">
-                {/* File Header */}
-                <div className="flex items-center justify-between mb-4 p-3 bg-muted rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-foreground" />
-                    <span className="font-medium text-foreground">{selectedDiff.file}</span>
-                    <span className="px-2 py-1 bg-muted text-foreground text-xs rounded">
-                      {selectedDiff.language}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => copyToClipboard(selectedDiff.newContent)}
-                    className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                    title="Copy file content"
+        <div className="h-full overflow-auto">
+          <div className="p-4 space-y-4">
+            {diffs.map((diff, index) => {
+              const isCollapsed = isFileCollapsed(diff.file);
+              const stats = getStats(diff);
+              
+              return (
+                <motion.div
+                  key={diff.file}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="border border-border rounded-lg overflow-hidden"
+                >
+                  {/* File Header - Collapsible */}
+                  <div 
+                    className="flex items-center justify-between p-3 bg-muted cursor-pointer hover:bg-muted/80 transition-colors"
+                    onClick={() => toggleFileCollapse(diff.file)}
                   >
-                    <Copy className="h-4 w-4" />
-                  </button>
-                </div>
-
-                {/* Diff Lines */}
-                <div className="font-mono text-sm">
-                  {selectedDiff.changes.map((change, index) => (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.02 }}
-                      className={`flex items-start gap-2 p-2 ${getChangeColor(change.type)}`}
-                    >
-                      {showLineNumbers && (
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground min-w-24 flex-shrink-0">
-                          {change.oldLineNumber && (
-                            <span className="w-8 text-right font-mono">
-                              {change.oldLineNumber}
-                            </span>
-                          )}
-                          {change.oldLineNumber && change.lineNumber && (
-                            <span className="text-muted-foreground">→</span>
-                          )}
-                          <span className="w-8 text-right font-mono">
-                            {change.lineNumber}
-                          </span>
-                        </div>
+                    <div className="flex items-center gap-2">
+                      {isCollapsed ? (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
                       )}
-                      
-                      <div className="flex items-center gap-2 min-w-6">
-                        {getChangeIcon(change.type)}
-                      </div>
-                      
-                      <div className="flex-1">
-                        <pre className={`font-mono text-sm text-foreground whitespace-pre-wrap break-words ${change.type === 'removed' ? 'line-through opacity-70' : ''}`}>
-                          {highlightCode(change.content, selectedDiff.language)}
-                        </pre>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-
-                {/* File Stats */}
-                <div className="mt-4 p-3 bg-muted rounded-lg">
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-1">
-                        <Plus className="h-3 w-3 text-green-400" />
-                        <span className="text-green-400">
-                          {selectedDiff.changes.filter(c => c.type === 'added').length} additions
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Minus className="h-3 w-3 text-red-400" />
-                        <span className="text-red-400">
-                          {selectedDiff.changes.filter(c => c.type === 'removed').length} deletions
-                        </span>
-                      </div>
+                      <FileText className="h-4 w-4 text-foreground" />
+                      <span className="font-medium text-foreground">{diff.file}</span>
+                      <span className="px-2 py-1 bg-background text-foreground text-xs rounded">
+                        {diff.language}
+                      </span>
                     </div>
-                    <div className="text-muted-foreground">
-                      {selectedDiff.changes.length} changes
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="text-green-400">+{stats.added}</span>
+                        <span className="text-red-400">-{stats.removed}</span>
+                        <span className="text-muted-foreground">{stats.added + stats.removed} changes</span>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          copyToClipboard(diff.newContent);
+                        }}
+                        className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                        title="Copy file content"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </button>
                     </div>
                   </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+
+                  {/* File Content - Collapsible */}
+                  <AnimatePresence>
+                    {!isCollapsed && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="p-4">
+                          {/* Diff Lines */}
+                          <div className="font-mono text-sm">
+                            {diff.changes.map((change, changeIndex) => (
+                              <motion.div
+                                key={changeIndex}
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: changeIndex * 0.02 }}
+                                className={`flex items-start gap-2 p-2 ${getChangeColor(change.type)}`}
+                              >
+                                {showLineNumbers && (
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground min-w-24 flex-shrink-0">
+                                    {change.oldLineNumber && (
+                                      <span className="w-8 text-right font-mono">
+                                        {change.oldLineNumber}
+                                      </span>
+                                    )}
+                                    {change.oldLineNumber && change.lineNumber && (
+                                      <span className="text-muted-foreground">→</span>
+                                    )}
+                                    <span className="w-8 text-right font-mono">
+                                      {change.lineNumber}
+                                    </span>
+                                  </div>
+                                )}
+                                
+                                <div className="flex items-center gap-2 min-w-6">
+                                  {getChangeIcon(change.type)}
+                                </div>
+                                
+                                <div className="flex-1">
+                                  <pre className={`font-mono text-sm text-foreground whitespace-pre-wrap break-words ${change.type === 'removed' ? 'line-through opacity-70' : ''}`}>
+                                    {highlightCode(change.content, diff.language)}
+                                  </pre>
+                                </div>
+                              </motion.div>
+                            ))}
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );

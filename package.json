@@ -23,12 +23,8 @@
   "author": "",
   "license": "MIT",
   "files": [
-    "bin",
-    "cli",
-    "server",
-    "client/dist",
-    "lib",
-    "dist"
+    "dist/**/*",
+    "client/dist/**/*"
   ],
   "dependencies": {
     "commander": "^11.0.0",
