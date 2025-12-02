@@ -1,6 +1,6 @@
 {
   "name": "git-manager-pro",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "A global npm package that provides a visual, web-based dashboard for managing Git operations, commits, PRs, and tasks across multiple projects",
   "main": "dist/bin/gmp.js",
   "bin": {

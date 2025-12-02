@@ -1,12 +1,11 @@
-import fetch from 'node-fetch';
+import https from 'https';
 import chalk from 'chalk';
 import { version } from '../package.json';
 
 export async function checkForUpdates(): Promise<void> {
   try {
-    const res = await fetch('https://registry.npmjs.org/git-manager-pro/latest');
-    if (!res.ok) return;
-    const data: any = await res.json();
+    const data: any = await fetchJson('https://registry.npmjs.org/git-manager-pro/latest');
+    if (!data) return;
     const latest = data.version as string | undefined;
     if (!latest) return;
     if (isNewer(latest, version)) {
@@ -20,6 +19,42 @@ export async function checkForUpdates(): Promise<void> {
   } catch {
     // Ignore network errors
   }
+}
+
+async function fetchJson(url: string): Promise<any | null> {
+  try {
+    // Prefer global fetch if available (Node 18+)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const g: any = globalThis as any;
+    if (typeof g.fetch === 'function') {
+      const res = await g.fetch(url);
+      if (!res.ok) return null;
+      return await res.json();
+    }
+  } catch {
+    // fall through to https
+  }
+  return new Promise((resolve) => {
+    https
+      .get(url, (res) => {
+        if (res.statusCode && res.statusCode >= 400) {
+          resolve(null);
+          res.resume();
+          return;
+        }
+        let data = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk) => (data += chunk));
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(data));
+          } catch {
+            resolve(null);
+          }
+        });
+      })
+      .on('error', () => resolve(null));
+  });
 }
 
 function isNewer(a: string, b: string): boolean {
