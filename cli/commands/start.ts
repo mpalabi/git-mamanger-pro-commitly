@@ -3,6 +3,7 @@ import path from 'path';
 import chalk from 'chalk';
 import ora from 'ora';
 import { ConfigManager } from '../../lib/config';
+import fs from 'fs';
 
 interface StartOptions {
   port?: string;
@@ -27,8 +28,37 @@ export async function start(options: StartOptions): Promise<void> {
       return;
     }
 
+    // Ensure server build exists and is up to date
+    const distServerPath = path.join(__dirname, '../../server/index.js');
+    const srcServerPath = path.join(__dirname, '../../../server/index.ts');
+    let needsBuild = false;
+    try {
+      const distStat = fs.statSync(distServerPath);
+      const srcStat = fs.statSync(srcServerPath);
+      if (srcStat.mtimeMs > distStat.mtimeMs) {
+        needsBuild = true;
+      }
+    } catch {
+      needsBuild = true;
+    }
+    if (needsBuild) {
+      spinner.text = 'Building server...';
+      await new Promise<void>((resolve, reject) => {
+        const build = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'build:server'], {
+          stdio: 'inherit',
+          env: process.env,
+          cwd: path.join(__dirname, '../../..'),
+        });
+        build.on('exit', (code) => {
+          if (code === 0) resolve();
+          else reject(new Error(`build:server exited with code ${code}`));
+        });
+        build.on('error', reject);
+      });
+    }
+
     // Start the server
-    const serverPath = path.join(__dirname, '../../server/index.js');
+    const serverPath = distServerPath;
     const server: ChildProcess = spawn('node', [serverPath], {
       stdio: 'inherit',
       env: { 
