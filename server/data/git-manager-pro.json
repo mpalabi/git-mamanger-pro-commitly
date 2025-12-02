@@ -1,0 +1,68 @@
+{
+  "tasks": {
+    "9534e2e2-17ad-4918-979c-33eb72fe585d": [
+      {
+        "id": "9fcdcc44-5d31-4cbb-ad27-7fec01e57ef1",
+        "title": "New Task 1",
+        "description": "<p>dcwecwec</p>",
+        "status": "todo",
+        "priority": "medium",
+        "assignee": "",
+        "tags": [],
+        "createdAt": "2025-12-02T10:20:23.132Z",
+        "updatedAt": "2025-12-02T10:45:24.584Z",
+        "dueDate": "",
+        "projectId": "9534e2e2-17ad-4918-979c-33eb72fe585d",
+        "commits": [],
+        "subtasks": [
+          {
+            "id": "1764671234518",
+            "title": "qwd",
+            "completed": false,
+            "createdAt": "2025-12-02T10:27:14.518Z",
+            "commits": []
+          }
+        ],
+        "attachments": [
+          {
+            "id": "1764672242280-2001.jpg",
+            "name": "2001.jpg",
+            "type": "image",
+            "url": "blob:http://localhost:3000/abac6cd0-135e-4fc3-9cb7-9771c06c81d7",
+            "size": 6576,
+            "uploadedAt": "2025-12-02T10:44:02.335Z"
+          }
+        ]
+      }
+    ],
+    "f15cea57-0782-4f65-b1ab-463339bd5dcc": [
+      {
+        "id": "bf16be42-28c2-46f0-a021-0efa8b1ccc27",
+        "title": "New Task 1",
+        "description": "",
+        "status": "todo",
+        "priority": "medium",
+        "assignee": "",
+        "tags": [],
+        "createdAt": "2025-12-02T11:34:07.512Z",
+        "updatedAt": "2025-12-02T11:43:55.821Z",
+        "dueDate": "",
+        "projectId": "f15cea57-0782-4f65-b1ab-463339bd5dcc",
+        "commits": [],
+        "subtasks": [
+          {
+            "id": "1764675827398",
+            "title": "gyg9 8",
+            "completed": false,
+            "createdAt": "2025-12-02T11:43:47.398Z",
+            "commits": []
+          }
+        ],
+        "attachments": []
+      }
+    ]
+  },
+  "milestones": {},
+  "settings": {},
+  "lastUpdated": "2025-12-02T11:43:55.821Z"
+}

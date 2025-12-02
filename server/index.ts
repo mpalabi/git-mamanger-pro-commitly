@@ -58,6 +58,62 @@ fastify.register(async function (fastify) {
     return await projectService.getAllProjects();
   });
 
+  // Global search (across all projects)
+  fastify.get('/api/search', async (request, reply) => {
+    const { q = '', limit = 10 } = request.query as { q?: string; limit?: number };
+    const term = (q || '').toString().toLowerCase().trim();
+    if (!term) return { tasks: [], commits: [] };
+
+    const config = await configManager.getConfig();
+    const projects = config.projects;
+
+    const tasksResults: any[] = [];
+    const commitsResults: any[] = [];
+
+    // Search tasks and recent commits per project
+    for (const p of projects) {
+      try {
+        const tasks = await taskService.getTasks(p.id);
+        for (const t of tasks) {
+          if (tasksResults.length >= limit) break;
+          const hay = `${t.title} ${t.description}`.toLowerCase();
+          if (hay.includes(term)) {
+            tasksResults.push({
+              projectId: p.id,
+              projectName: path.basename(p.path),
+              taskId: t.id,
+              title: t.title,
+              snippet: t.description ? t.description.replace(/<[^>]+>/g, '').slice(0, 200) : '',
+              status: t.status,
+              updatedAt: t.updatedAt
+            });
+          }
+        }
+
+        const commits = await projectService.getCommits(p.id, 100);
+        for (const c of commits) {
+          if (commitsResults.length >= limit) break;
+          const hay = `${c.message} ${c.author} ${c.hash}`.toLowerCase();
+          if (hay.includes(term)) {
+            commitsResults.push({
+              projectId: p.id,
+              projectName: path.basename(p.path),
+              hash: c.hash,
+              message: c.message,
+              author: c.author,
+              date: c.date,
+              branch: c.branch
+            });
+          }
+        }
+      } catch (e) {
+        // ignore failing project
+      }
+    }
+
+    return { tasks: tasksResults.slice(0, limit), commits: commitsResults.slice(0, limit) };
+  });
+
   // Meta routes - useful for debugging endpoints existence
   fastify.get('/api/meta/routes', async (request, reply) => {
     try {

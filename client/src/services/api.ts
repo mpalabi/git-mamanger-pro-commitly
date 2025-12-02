@@ -6,6 +6,22 @@ const apiClient = axios.create({
   timeout: 10000,
 });
 
+// Global error interceptor to surface errors to UI
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const msg =
+      error?.response?.data?.error ||
+      error?.response?.data?.message ||
+      error?.message ||
+      'Request failed';
+    try {
+      window.dispatchEvent(new CustomEvent('app:toast', { detail: { type: 'error', message: msg } }));
+    } catch {}
+    return Promise.reject(error);
+  }
+);
+
 export interface Project {
   id: string;
   name: string;
@@ -191,6 +207,14 @@ export const api = {
 
   async updateProjectSettings(projectId: string, settings: Partial<ProjectSettings>): Promise<ProjectSettings> {
     const response = await apiClient.put(`/projects/${projectId}/settings`, settings);
+    return response.data;
+  },
+
+  // Global search
+  async searchGlobal(query: string, limit: number = 10): Promise<{ tasks: any[]; commits: any[] }> {
+    const response = await apiClient.get(`/search`, {
+      params: { q: query, limit }
+    });
     return response.data;
   },
 };

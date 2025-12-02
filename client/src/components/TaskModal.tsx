@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, 
@@ -71,6 +71,10 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const [activeCommitPicker, setActiveCommitPicker] = useState<string | null>(null);
   const [commitSearchTerm, setCommitSearchTerm] = useState('');
   const [subtasksDirty, setSubtasksDirty] = useState(false);
+  const commentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const subtaskInputRef = useRef<HTMLInputElement | null>(null);
+  const attachmentInputRef = useRef<HTMLInputElement | null>(null);
+  const originalTaskSnapshotRef = useRef<string | null>(null);
 
   const queryClient = useQueryClient();
 
@@ -86,6 +90,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   useEffect(() => {
     if (task) {
       setEditedTask({ ...task });
+      originalTaskSnapshotRef.current = JSON.stringify(task);
       setIsEditing(false);
     } else {
       // Create a new task template when task is null
@@ -107,6 +112,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         issues: []
       };
       setEditedTask(newTask);
+      originalTaskSnapshotRef.current = JSON.stringify(newTask);
       setIsEditing(true); // Start in editing mode for new tasks
     }
   }, [task, projectId]);
@@ -116,6 +122,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     mutationFn: (newTask: Task) => api.createTask(projectId, newTask),
     onSuccess: (createdTask) => {
       onSave(createdTask);
+      setEditedTask(createdTask);
       setIsEditing(false);
       queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
     },
@@ -125,6 +132,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     mutationFn: (updatedTask: Task) => api.updateTask(projectId, updatedTask.id, updatedTask),
     onSuccess: (updatedTask) => {
       onSave(updatedTask);
+      setEditedTask(updatedTask);
       setIsEditing(false);
       queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
     },
@@ -287,6 +295,15 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     });
   };
 
+  const ensureSectionOpen = (section: string) => {
+    setExpandedSections(prev => {
+      if (prev.has(section)) return prev;
+      const next = new Set(prev);
+      next.add(section);
+      return next;
+    });
+  };
+
   const addTag = () => {
     if (newTag.trim() && editedTask && !editedTask.tags.includes(newTag.trim())) {
       setEditedTask(prev => prev ? { 
@@ -384,7 +401,14 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                     Save
                   </button>
                   <button
-                    onClick={() => setIsEditing(false)}
+                    onClick={() => {
+                      if (task) {
+                        setEditedTask({ ...task });
+                        setIsEditing(false);
+                      } else {
+                        onClose();
+                      }
+                    }}
                     className="px-4 py-2 bg-muted text-foreground rounded-md hover:bg-muted/80"
                   >
                     Cancel
@@ -598,8 +622,12 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                     </button>
                     {isEditing && (
                       <button
-                        onClick={() => toggleSection('subtasks')}
+                        onClick={() => {
+                          ensureSectionOpen('subtasks');
+                          setTimeout(() => subtaskInputRef.current?.focus(), 0);
+                        }}
                         className="p-2 text-primary hover:bg-primary/10 rounded-md"
+                        title="Add subtask"
                       >
                         <Plus className="h-4 w-4" />
                       </button>
@@ -622,6 +650,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                             onChange={(e) => setNewSubtask(e.target.value)}
                             placeholder="Add a subtask..."
                             className="flex-1 px-3 py-2 bg-background border border-input rounded-md text-sm"
+                            ref={subtaskInputRef}
                             onKeyPress={(e) => e.key === 'Enter' && handleAddSubtask()}
                           />
                           <button
@@ -782,6 +811,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                           placeholder="Add a comment..."
                           className="w-full p-3 bg-background border border-input rounded-md text-sm resize-none"
                           rows={3}
+                          ref={commentTextareaRef}
                         />
                         <div className="flex justify-end">
                           <button
@@ -1002,9 +1032,48 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                       )}
                       Attachments ({editedTask?.attachments.length || 0})
                     </button>
-                    <button className="p-2 text-primary hover:bg-primary/10 rounded-md">
-                      <Paperclip className="h-4 w-4" />
-                    </button>
+                    <div>
+                      <input
+                        type="file"
+                        multiple
+                        ref={attachmentInputRef}
+                        className="hidden"
+                        onChange={async (e) => {
+                          const files = Array.from(e.target.files || []);
+                          if (!files.length || !editedTask) return;
+                          const newAttachments = files.map((file) => ({
+                            id: `${Date.now()}-${file.name}`,
+                            name: file.name,
+                            type: (file.type.startsWith('image') ? 'image' : 'file') as 'image' | 'file',
+                            url: URL.createObjectURL(file),
+                            size: file.size,
+                            uploadedAt: new Date().toISOString(),
+                          }));
+                          const updated: Task = {
+                            ...editedTask,
+                            attachments: [...(editedTask.attachments || []), ...newAttachments],
+                          };
+                          setEditedTask(updated);
+                          // Persist immediately if the task already exists
+                          if (task) {
+                            try {
+                              const saved = await api.updateTask(projectId, editedTask.id, { attachments: updated.attachments });
+                              setEditedTask(saved);
+                              queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+                            } catch {}
+                          }
+                          // reset input
+                          if (attachmentInputRef.current) attachmentInputRef.current.value = '';
+                        }}
+                      />
+                      <button
+                        className="p-2 text-primary hover:bg-primary/10 rounded-md"
+                        title="Add attachments"
+                        onClick={() => attachmentInputRef.current?.click()}
+                      >
+                        <Paperclip className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                   
                   {expandedSections.has('attachments') && (
@@ -1055,15 +1124,34 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                       <Edit3 className="h-4 w-4" />
                       {isEditing ? 'Stop Editing' : 'Edit Task'}
                     </button>
-                    <button className="w-full flex items-center gap-2 p-2 text-sm text-foreground hover:bg-accent rounded-md">
+                    <button
+                      onClick={() => {
+                        ensureSectionOpen('comments');
+                        setTimeout(() => commentTextareaRef.current?.focus(), 0);
+                      }}
+                      className="w-full flex items-center gap-2 p-2 text-sm text-foreground hover:bg-accent rounded-md"
+                    >
                       <MessageSquare className="h-4 w-4" />
                       Add Comment
                     </button>
-                    <button className="w-full flex items-center gap-2 p-2 text-sm text-foreground hover:bg-accent rounded-md">
+                    <button
+                      onClick={() => {
+                        setIsEditing(true);
+                        ensureSectionOpen('subtasks');
+                        setTimeout(() => subtaskInputRef.current?.focus(), 0);
+                      }}
+                      className="w-full flex items-center gap-2 p-2 text-sm text-foreground hover:bg-accent rounded-md"
+                    >
                       <Plus className="h-4 w-4" />
                       Add Subtask
                     </button>
-                    <button className="w-full flex items-center gap-2 p-2 text-sm text-foreground hover:bg-accent rounded-md">
+                    <button
+                      onClick={() => {
+                        ensureSectionOpen('issues');
+                        setShowNewIssue(true);
+                      }}
+                      className="w-full flex items-center gap-2 p-2 text-sm text-foreground hover:bg-accent rounded-md"
+                    >
                       <AlertTriangle className="h-4 w-4" />
                       Report Issue
                     </button>

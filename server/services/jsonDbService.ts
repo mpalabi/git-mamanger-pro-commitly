@@ -283,9 +283,22 @@ export class JsonDbService {
       return null;
     }
 
+    // Normalize subtasks if provided
+    let normalizedSubtasks = updates.subtasks;
+    if (updates.subtasks) {
+      normalizedSubtasks = updates.subtasks.map((s) => ({
+        id: s.id,
+        title: s.title || 'Untitled',
+        completed: !!s.completed,
+        createdAt: s.createdAt || new Date().toISOString(),
+        commits: Array.isArray(s.commits) ? s.commits : [],
+      }));
+    }
+
     const updatedTask: Task = {
       ...tasks[taskIndex],
       ...updates,
+      subtasks: normalizedSubtasks ?? tasks[taskIndex].subtasks,
       updatedAt: new Date().toISOString()
     };
 
