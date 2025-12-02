@@ -4,7 +4,7 @@ import { version } from '../package.json';
 
 export async function checkForUpdates(): Promise<void> {
   try {
-    const res = await fetch('https://registry.npmjs.org/git-manager-pro/latest', { timeout: 3000 as any });
+    const res = await fetch('https://registry.npmjs.org/git-manager-pro/latest');
     if (!res.ok) return;
     const data: any = await res.json();
     const latest = data.version as string | undefined;
