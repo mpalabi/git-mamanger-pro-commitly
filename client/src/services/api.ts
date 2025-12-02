@@ -65,8 +65,10 @@ export const api = {
     return response.data;
   },
 
-  async getBranches(id: string): Promise<GitBranch[]> {
-    const response = await apiClient.get(`/projects/${id}/git/branches`);
+  async getBranches(id: string, options?: { all?: boolean }): Promise<GitBranch[]> {
+    const response = await apiClient.get(`/projects/${id}/git/branches`, {
+      params: { all: options?.all ?? true }
+    });
     return response.data;
   },
 
@@ -138,6 +140,18 @@ export const api = {
 
   async unlinkCommitFromTask(projectId: string, taskId: string, commitHash: string): Promise<Task> {
     const response = await apiClient.delete(`/projects/${projectId}/tasks/${taskId}/commits/${commitHash}`);
+    return response.data;
+  },
+
+  async linkCommitToSubtask(projectId: string, taskId: string, subtaskId: string, commitHash: string): Promise<Task> {
+    const response = await apiClient.post(`/projects/${projectId}/tasks/${taskId}/subtasks/${subtaskId}/commits`, {
+      commitHash
+    });
+    return response.data;
+  },
+
+  async unlinkCommitFromSubtask(projectId: string, taskId: string, subtaskId: string, commitHash: string): Promise<Task> {
+    const response = await apiClient.delete(`/projects/${projectId}/tasks/${taskId}/subtasks/${subtaskId}/commits/${commitHash}`);
     return response.data;
   },
 

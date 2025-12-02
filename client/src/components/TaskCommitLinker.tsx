@@ -370,7 +370,7 @@ export const TaskCommitLinker: React.FC<TaskCommitLinkerProps> = ({ projectId })
         </div>
 
         {/* Commits List */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
+        <div className="overflow-y-auto custom-scrollbar h-[68vh]">
           <AnimatePresence>
             {filteredCommits.map((commit) => {
               const isLinked = isCommitLinked(commit.hash);

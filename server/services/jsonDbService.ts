@@ -24,6 +24,7 @@ export interface Task {
   commits: TaskCommit[];
   subtasks: Subtask[];
   attachments: TaskAttachment[];
+  issues?: TaskIssue[];
 }
 
 export interface Subtask {
@@ -31,6 +32,7 @@ export interface Subtask {
   title: string;
   completed: boolean;
   createdAt: string;
+  commits?: TaskCommit[]; // Optional for backward compatibility
 }
 
 export interface TaskCommit {
@@ -50,6 +52,17 @@ export interface TaskAttachment {
   url: string;
   size?: number;
   uploadedAt: string;
+}
+
+export interface TaskIssue {
+  id: string;
+  title: string;
+  description: string;
+  type: 'bug' | 'feature' | 'improvement' | 'task';
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  status: 'open' | 'in-progress' | 'resolved' | 'closed';
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ProjectMilestone {
@@ -158,7 +171,8 @@ export class JsonDbService {
       projectId,
       commits: [],
       subtasks: [],
-      attachments: []
+      attachments: [],
+      issues: []
     };
 
     if (!this.data.tasks[projectId]) {

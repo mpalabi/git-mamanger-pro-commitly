@@ -76,7 +76,12 @@ fastify.register(async function (fastify) {
 
   fastify.get('/api/projects/:id/git/branches', async (request, reply) => {
     const { id } = request.params as { id: string };
-    return await projectService.getBranches(id);
+    const { all } = request.query as { all?: string | boolean };
+    const includeRemotes =
+      typeof all === 'string'
+        ? all === 'true' || all === '1'
+        : (all ?? true);
+    return await projectService.getBranches(id, includeRemotes);
   });
 
   fastify.get('/api/projects/:id/git/commits', async (request, reply) => {
@@ -146,6 +151,18 @@ fastify.register(async function (fastify) {
   fastify.delete('/api/projects/:id/tasks/:taskId/commits/:commitHash', async (request, reply) => {
     const { id, taskId, commitHash } = request.params as { id: string; taskId: string; commitHash: string };
     return await taskService.unlinkCommitFromTask(id, taskId, commitHash);
+  });
+
+  // Subtask commit linking
+  fastify.post('/api/projects/:id/tasks/:taskId/subtasks/:subtaskId/commits', async (request, reply) => {
+    const { id, taskId, subtaskId } = request.params as { id: string; taskId: string; subtaskId: string };
+    const { commitHash } = request.body as { commitHash: string };
+    return await taskService.linkCommitToSubtask(id, taskId, subtaskId, commitHash);
+  });
+
+  fastify.delete('/api/projects/:id/tasks/:taskId/subtasks/:subtaskId/commits/:commitHash', async (request, reply) => {
+    const { id, taskId, subtaskId, commitHash } = request.params as { id: string; taskId: string; subtaskId: string; commitHash: string };
+    return await taskService.unlinkCommitFromSubtask(id, taskId, subtaskId, commitHash);
   });
 
   // Code Diff API

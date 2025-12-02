@@ -8,6 +8,7 @@ import { list } from '../cli/commands/list';
 import { remove } from '../cli/commands/remove';
 import { status } from '../cli/commands/status';
 import { open } from '../cli/commands/open';
+import { auditLogs } from '../cli/commands/audit-logs';
 
 program
   .name('gmp')
@@ -52,5 +53,23 @@ program
   .command('open')
   .description('Open the dashboard in your default browser')
   .action(open);
+
+program
+  .command('audit-logs')
+  .description('Scan for console.log statements and optionally comment or remove them')
+  .argument('[path]', 'Directory to scan (defaults to current directory)')
+  .option('-a, --action <action>', 'Action to take: comment | remove | list', 'list')
+  .option('--yes', 'Skip prompt and proceed with provided action', false)
+  .option('--dry-run', 'Preview changes without writing to files', false)
+  .option('--extensions <exts>', 'Comma-separated extensions to scan', 'js,jsx,ts,tsx')
+  .action((pathArg: string | undefined, opts: any) => {
+    return auditLogs({
+      path: pathArg,
+      action: opts.action,
+      yes: !!opts.yes,
+      dryRun: !!opts.dryRun,
+      extensions: opts.extensions
+    });
+  });
 
 program.parse();

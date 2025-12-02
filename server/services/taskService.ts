@@ -98,4 +98,58 @@ export class TaskService {
 
     return updatedTask!;
   }
+
+  async linkCommitToSubtask(projectId: string, taskId: string, subtaskId: string, commitHash: string): Promise<Task> {
+    const task = await this.getTask(projectId, taskId);
+    const subtaskIndex = task.subtasks.findIndex(s => s.id === subtaskId);
+    if (subtaskIndex === -1) {
+      throw new Error('Subtask not found');
+    }
+
+    const subtask = task.subtasks[subtaskIndex];
+    const existing = (subtask.commits || []).find((c: TaskCommit) => c.commitHash === commitHash);
+    if (existing) {
+      return task;
+    }
+
+    const newCommit: TaskCommit = {
+      id: uuidv4(),
+      commitHash,
+      message: `Commit ${commitHash.substring(0, 7)}`,
+      author: 'Developer',
+      date: new Date().toISOString(),
+      files: [],
+      addedAt: new Date().toISOString()
+    };
+
+    const updatedSubtasks = [...task.subtasks];
+    const currentCommits = subtask.commits || [];
+    updatedSubtasks[subtaskIndex] = {
+      ...subtask,
+      commits: [...currentCommits, newCommit]
+    };
+
+    const updatedTask = this.db.updateTask(projectId, taskId, {
+      subtasks: updatedSubtasks
+    });
+    return updatedTask!;
+  }
+
+  async unlinkCommitFromSubtask(projectId: string, taskId: string, subtaskId: string, commitHash: string): Promise<Task> {
+    const task = await this.getTask(projectId, taskId);
+    const subtaskIndex = task.subtasks.findIndex(s => s.id === subtaskId);
+    if (subtaskIndex === -1) {
+      throw new Error('Subtask not found');
+    }
+    const subtask = task.subtasks[subtaskIndex];
+    const updatedSubtasks = [...task.subtasks];
+    updatedSubtasks[subtaskIndex] = {
+      ...subtask,
+      commits: (subtask.commits || []).filter((c: TaskCommit) => c.commitHash !== commitHash)
+    };
+    const updatedTask = this.db.updateTask(projectId, taskId, {
+      subtasks: updatedSubtasks
+    });
+    return updatedTask!;
+  }
 }

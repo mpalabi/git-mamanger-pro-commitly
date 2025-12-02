@@ -63,9 +63,17 @@ export function Dashboard() {
             className="block p-6 border border-border rounded-lg bg-card hover:bg-accent transition-colors"
           >
             <div className="flex items-start justify-between mb-4">
-              <div>
-                <h3 className="font-semibold text-lg">{project.name}</h3>
-                <p className="text-sm text-muted-foreground truncate">
+              <div className="min-w-0">
+                <h3
+                  className="font-semibold text-lg truncate max-w-[16rem] md:max-w-[18rem] lg:max-w-[20rem]"
+                  title={project.name}
+                >
+                  {project.name}
+                </h3>
+                <p
+                  className="text-sm text-muted-foreground truncate max-w-[22rem] md:max-w-[26rem] lg:max-w-[28rem]"
+                  title={project.path}
+                >
                   {project.path}
                 </p>
               </div>
@@ -79,9 +87,9 @@ export function Dashboard() {
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center space-x-2 text-sm">
+              <div className="flex items-center space-x-2 text-sm min-w-0">
                 <GitBranch className="h-4 w-4 text-muted-foreground" />
-                <span>{project.currentBranch}</span>
+                <span className="truncate" title={project.currentBranch}>{project.currentBranch}</span>
               </div>
 
               <div className="flex items-center space-x-2 text-sm">

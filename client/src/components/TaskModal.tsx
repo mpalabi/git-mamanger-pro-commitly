@@ -19,9 +19,9 @@ import {
   Send,
   FileText
 } from 'lucide-react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../services/api';
-import { Task, Subtask } from '../types';
+import { Task, Subtask, TaskIssue } from '../types';
 import { RichTextEditor } from './ui/RichTextEditor';
 
 interface TaskModalProps {
@@ -68,12 +68,20 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const [showNewIssue, setShowNewIssue] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['details', 'subtasks']));
   const [newTag, setNewTag] = useState('');
+  const [activeCommitPicker, setActiveCommitPicker] = useState<string | null>(null);
+  const [commitSearchTerm, setCommitSearchTerm] = useState('');
+  const [subtasksDirty, setSubtasksDirty] = useState(false);
 
   const queryClient = useQueryClient();
 
-  // Comments and issues will be managed per task (empty by default)
+  // Load recent commits for linking (compact list)
+  const { data: commits = [] } = useQuery({
+    queryKey: ['commits', projectId],
+    queryFn: () => api.getCommits(projectId, 50),
+  });
+
+  // Comments are local in modal
   const [comments, setComments] = useState<Comment[]>([]);
-  const [issues, setIssues] = useState<Issue[]>([]);
 
   useEffect(() => {
     if (task) {
@@ -95,7 +103,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         projectId: projectId,
         commits: [],
         subtasks: [],
-        attachments: []
+        attachments: [],
+        issues: []
       };
       setEditedTask(newTask);
       setIsEditing(true); // Start in editing mode for new tasks
@@ -134,7 +143,27 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const unlinkCommitMutation = useMutation({
     mutationFn: ({ taskId, commitHash }: { taskId: string; commitHash: string }) =>
       api.unlinkCommitFromTask(projectId, taskId, commitHash),
-    onSuccess: () => {
+    onSuccess: (updatedTask) => {
+      // Keep modal state in sync immediately
+      setEditedTask(updatedTask);
+      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+    },
+  });
+
+  const linkCommitToSubtaskMutation = useMutation({
+    mutationFn: ({ subtaskId, commitHash }: { subtaskId: string; commitHash: string }) =>
+      api.linkCommitToSubtask(projectId, editedTask?.id || '', subtaskId, commitHash),
+    onSuccess: (updatedTask) => {
+      setEditedTask(updatedTask);
+      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+    },
+  });
+
+  const unlinkCommitFromSubtaskMutation = useMutation({
+    mutationFn: ({ subtaskId, commitHash }: { subtaskId: string; commitHash: string }) =>
+      api.unlinkCommitFromSubtask(projectId, editedTask?.id || '', subtaskId, commitHash),
+    onSuccess: (updatedTask) => {
+      setEditedTask(updatedTask);
       queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
     },
   });
@@ -177,12 +206,14 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         id: Date.now().toString(),
         title: newSubtask,
         completed: false,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        commits: []
       };
       setEditedTask({
         ...editedTask,
         subtasks: [...editedTask.subtasks, subtask]
       });
+      setSubtasksDirty(true);
       setNewSubtask('');
     }
   };
@@ -195,6 +226,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           subtask.id === subtaskId ? { ...subtask, completed: !subtask.completed } : subtask
         )
       });
+      setSubtasksDirty(true);
     }
   };
 
@@ -204,25 +236,43 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         ...editedTask,
         subtasks: editedTask.subtasks.filter(subtask => subtask.id !== subtaskId)
       });
+      setSubtasksDirty(true);
     }
   };
 
-  const handleAddIssue = () => {
-    if (newIssue.title && newIssue.description) {
-      const issue: Issue = {
-        id: Date.now().toString(),
-        title: newIssue.title,
-        description: newIssue.description,
-        type: newIssue.type || 'task',
-        priority: newIssue.priority || 'medium',
-        status: 'open',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      setIssues(prev => [issue, ...prev]);
-      setNewIssue({});
-      setShowNewIssue(false);
+  const handleAddIssue = async () => {
+    if (!editedTask || !newIssue.title || !newIssue.description) return;
+    const issue: TaskIssue = {
+      id: Date.now().toString(),
+      title: newIssue.title,
+      description: newIssue.description,
+      type: (newIssue.type as any) || 'task',
+      priority: (newIssue.priority as any) || 'medium',
+      status: 'open',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    const updated: Task = { ...editedTask, issues: [issue, ...(editedTask.issues || [])] };
+    setEditedTask(updated);
+    setNewIssue({});
+    setShowNewIssue(false);
+    if (task) {
+      try {
+        const saved = await api.updateTask(projectId, editedTask.id, { issues: updated.issues });
+        setEditedTask(saved);
+        queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+      } catch {}
     }
+  };
+
+  const ensureSubtasksPersisted = async () => {
+    if (!editedTask || !subtasksDirty) return;
+    try {
+      const saved = await api.updateTask(projectId, editedTask.id, { subtasks: editedTask.subtasks });
+      setEditedTask(saved);
+      setSubtasksDirty(false);
+      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+    } catch {}
   };
 
   const toggleSection = (section: string) => {
@@ -585,7 +635,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                       
                       {/* Subtasks list */}
                       {(editedTask?.subtasks || []).map((subtask) => (
-                        <div key={subtask.id} className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg border border-border">
+                        <div key={subtask.id} className="relative flex items-center gap-3 p-3 bg-muted/30 rounded-lg border border-border">
                           <button
                             onClick={() => handleToggleSubtask(subtask.id)}
                             className="text-muted-foreground hover:text-foreground"
@@ -599,6 +649,94 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                           <span className={`flex-1 text-sm ${subtask.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
                             {subtask.title}
                           </span>
+                          {/* Compact subtask commit linker */}
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              setActiveCommitPicker(prev => prev === subtask.id ? null : subtask.id);
+                            }}
+                            className="relative px-2 py-1 rounded-md hover:bg-accent text-muted-foreground"
+                            title="Link commits to this subtask"
+                          >
+                            <GitCommit className="h-4 w-4" />
+                            <span className="absolute -top-1 -right-1 text-[10px] px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground">
+                              {(subtask.commits?.length || 0)}
+                            </span>
+                          </button>
+                          {activeCommitPicker === subtask.id && (
+                            <div className="absolute z-10 right-2 top-12 w-80 max-w-[calc(100vw-4rem)] bg-popover border border-border rounded-md shadow-lg">
+                              <div className="p-2 border-b border-border">
+                                <input
+                                  value={commitSearchTerm}
+                                  onChange={(e) => setCommitSearchTerm(e.target.value)}
+                                  placeholder="Search commits..."
+                                  className="w-full px-2 py-1.5 bg-background border border-input rounded-md text-xs"
+                                />
+                              </div>
+                              <div className="max-h-64 overflow-auto custom-scrollbar">
+                                {commits
+                                  .filter((c) => {
+                                    const term = commitSearchTerm.toLowerCase();
+                                    return (
+                                      !term ||
+                                      c.message.toLowerCase().includes(term) ||
+                                      c.hash.toLowerCase().includes(term) ||
+                                      c.author.toLowerCase().includes(term)
+                                    );
+                                  })
+                                  .map((c) => {
+                                    const linked = (subtask.commits || []).some(sc => sc.commitHash === c.hash);
+                                    return (
+                                      <div
+                                        key={c.hash}
+                                        className="flex items-center justify-between px-3 py-2 text-sm hover:bg-accent"
+                                      >
+                                        <div className="min-w-0">
+                                          <div className="flex items-center gap-2">
+                                            <span className="font-mono text-xs text-muted-foreground">{c.hash.substring(0,7)}</span>
+                                            <span className="truncate">{c.message}</span>
+                                          </div>
+                                          <div className="text-[10px] text-muted-foreground">{c.author} • {new Date(c.date).toLocaleDateString()}</div>
+                                        </div>
+                                        <button
+                                          onClick={async (e) => {
+                                            e.stopPropagation();
+                                            if (!editedTask) return;
+                                            await ensureSubtasksPersisted();
+                                            if (linked) {
+                                              unlinkCommitFromSubtaskMutation.mutate({ subtaskId: subtask.id, commitHash: c.hash });
+                                            } else {
+                                              linkCommitToSubtaskMutation.mutate({ subtaskId: subtask.id, commitHash: c.hash });
+                                            }
+                                          }}
+                                          className={`ml-3 px-2 py-1 rounded text-xs border ${
+                                            linked
+                                              ? 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'
+                                              : 'bg-primary/10 text-primary border-primary/20 hover:bg-primary/20'
+                                          }`}
+                                        >
+                                          {linked ? 'Unlink' : 'Link'}
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                {commits.length === 0 && (
+                                  <div className="px-3 py-6 text-xs text-center text-muted-foreground">No commits found</div>
+                                )}
+                              </div>
+                              <div className="p-2 border-t border-border flex justify-end">
+                                <button
+                                  onClick={() => {
+                                    setActiveCommitPicker(null);
+                                    setCommitSearchTerm('');
+                                  }}
+                                  className="px-2 py-1 text-xs rounded-md hover:bg-accent"
+                                >
+                                  Close
+                                </button>
+                              </div>
+                            </div>
+                          )}
                           {isEditing && (
                             <button
                               onClick={() => handleDeleteSubtask(subtask.id)}
@@ -688,7 +826,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                       ) : (
                         <ChevronRight className="h-5 w-5" />
                       )}
-                      Issues ({issues.length})
+                      Issues ({(editedTask?.issues || []).length})
                     </button>
                     <button
                       onClick={() => setShowNewIssue(!showNewIssue)}
@@ -763,7 +901,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                       
                       {/* Issues list */}
                       <div className="space-y-3">
-                        {issues.map((issue) => (
+                        {(editedTask?.issues || []).map((issue) => (
                           <div key={issue.id} className="p-4 bg-muted/30 rounded-lg border border-border">
                             <div className="flex items-start justify-between mb-2">
                               <div className="flex items-center gap-2">
@@ -821,17 +959,23 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
                                 <GitCommit className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-sm font-medium text-foreground">{commit.message}</span>
+                                <span className="text-sm font-medium text-foreground truncate max-w-[22rem]" title={commit.message}>
+                                  {commit.message}
+                                </span>
                               </div>
                               <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                                <span className="font-mono">{commit.commitHash.substring(0, 7)}</span>
+                                <span className="font-mono" title={commit.commitHash}>{commit.commitHash.substring(0, 7)}</span>
                                 <span>{commit.author}</span>
                                 <span>{new Date(commit.date).toLocaleDateString()}</span>
                                 <span>Linked: {new Date(commit.addedAt).toLocaleDateString()}</span>
                               </div>
                             </div>
                             <button
-                              onClick={() => unlinkCommitMutation.mutate({ taskId: editedTask?.id || '', commitHash: commit.commitHash })}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!editedTask) return;
+                                unlinkCommitMutation.mutate({ taskId: editedTask.id, commitHash: commit.commitHash });
+                              }}
                               className="p-1 text-red-400 hover:bg-red-400/10 rounded"
                               title="Unlink commit"
                             >
@@ -950,7 +1094,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Issues:</span>
-                      <span className="text-foreground">{issues.length}</span>
+                      <span className="text-foreground">{(editedTask?.issues || []).length}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Commits:</span>

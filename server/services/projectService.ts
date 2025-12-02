@@ -101,14 +101,14 @@ export class ProjectService {
     return await this.getProjectStatus(projectId);
   }
 
-  async getBranches(projectId: string): Promise<GitBranch[]> {
+  async getBranches(projectId: string, includeRemotes: boolean = true): Promise<GitBranch[]> {
     const project = await this.configManager.getProjectById(projectId);
     if (!project) {
       throw new Error('Project not found');
     }
 
     const gitService = new GitService(project.path);
-    return await gitService.getBranches();
+    return await gitService.getBranches(includeRemotes);
   }
 
   async getCommits(projectId: string, limit: number = 10): Promise<GitCommit[]> {

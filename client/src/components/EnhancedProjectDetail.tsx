@@ -60,7 +60,7 @@ export const EnhancedProjectDetail: React.FC = () => {
 
   const { data: branches } = useQuery({
     queryKey: ['branches', id],
-    queryFn: () => api.getBranches(id!),
+    queryFn: () => api.getBranches(id!, { all: true }),
     enabled: !!id,
   });
 
@@ -363,9 +363,12 @@ const OverviewTab: React.FC<{
                       branch.current ? 'bg-blue-50 border border-blue-200' : 'hover:bg-accent'
                     }`}
                   >
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 min-w-0">
                       <GitBranch className="h-4 w-4 text-muted-foreground" />
-                      <span className={`font-medium ${branch.current ? 'text-blue-700' : 'text-foreground'}`}>
+                      <span
+                        className={`font-medium truncate ${branch.current ? 'text-blue-700' : 'text-foreground'}`}
+                        title={branch.name}
+                      >
                         {branch.name}
                       </span>
                     </div>

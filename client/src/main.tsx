@@ -5,6 +5,24 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import './index.css';
 
+// Initialize theme early to avoid flash
+(() => {
+  if (typeof document !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('gmp-theme') as 'light' | 'dark' | null;
+      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const theme = stored ?? (prefersDark ? 'dark' : 'light');
+      if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    } catch {
+      // no-op
+    }
+  }
+})();
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

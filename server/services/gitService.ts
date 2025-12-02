@@ -78,17 +78,41 @@ export class GitService {
     }
   }
 
-  async getBranches(): Promise<GitBranch[]> {
+  async getBranches(includeRemotes: boolean = true): Promise<GitBranch[]> {
     try {
-      const branches = await this.git.branchLocal();
+      // Ensure we have the latest refs for remote branches
+      if (includeRemotes) {
+        try {
+          await this.git.fetch(['--all', '--prune']);
+        } catch {
+          // Ignore fetch errors; we'll still return local branches
+        }
+      }
+
+      const summary = includeRemotes ? await this.git.branch(['-a']) : await this.git.branchLocal();
       const currentBranch = await this.getCurrentBranch();
-      
-      return branches.all.map(branch => ({
-        name: branch,
-        current: branch === currentBranch,
-        commit: branches.branches[branch]?.commit || '',
-        label: branches.branches[branch]?.label || branch
-      }));
+
+      const names = summary.all
+        // Drop HEAD pointers like "remotes/origin/HEAD -> origin/main"
+        .filter((name) => !name.includes('->'));
+
+      // De-duplicate in case refs overlap (e.g., 'main' and 'remotes/origin/main')
+      const seen = new Set<string>();
+      const uniqNames = names.filter((n) => {
+        if (seen.has(n)) return false;
+        seen.add(n);
+        return true;
+      });
+
+      return uniqNames.map((name) => {
+        const info = summary.branches[name] || summary.branches[name.replace('remotes/', '')] || ({} as any);
+        return {
+          name,
+          current: name === currentBranch || info.current === true,
+          commit: info.commit || '',
+          label: info.label || name
+        };
+      });
     } catch (error) {
       throw new Error('Failed to get branches');
     }
