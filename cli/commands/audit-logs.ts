@@ -6,7 +6,7 @@ import inquirer from 'inquirer';
 
 interface AuditLogsOptions {
   path?: string;
-  action?: 'comment' | 'remove' | 'list';
+  action?: 'comment' | 'remove' | 'list' | 'abort';
   yes?: boolean;
   dryRun?: boolean;
   extensions?: string; // comma-separated, default: js,jsx,ts,tsx
