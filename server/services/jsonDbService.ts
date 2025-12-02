@@ -3,6 +3,7 @@ import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface JsonDbSchema {
+  schemaVersion: number;
   tasks: { [projectId: string]: Task[] };
   milestones: { [projectId: string]: ProjectMilestone[] };
   settings: { [projectId: string]: ProjectSettings };
@@ -105,9 +106,26 @@ export class JsonDbService {
   private data: JsonDbSchema;
 
   constructor() {
-    this.dbPath = path.join(process.cwd(), 'data', 'git-manager-pro.json');
+    this.dbPath = this.resolveDbPath();
     this.ensureDataDirectory();
     this.data = this.loadData();
+  }
+
+  private resolveDbPath(): string {
+    // Prefer explicit env, then stable path near compiled server, then CWD fallback
+    const envPath = process.env.GMP_DB_PATH;
+    if (envPath && envPath.trim()) return path.resolve(envPath);
+    const candidates = [
+      path.resolve(__dirname, '../../data/git-manager-pro.json'),
+      path.resolve(__dirname, '../../../data/git-manager-pro.json'),
+      path.join(process.cwd(), 'data', 'git-manager-pro.json'),
+    ];
+    for (const p of candidates) {
+      try {
+        if (fs.existsSync(p)) return p;
+      } catch {}
+    }
+    return candidates[0];
   }
 
   private ensureDataDirectory(): void {
@@ -121,14 +139,24 @@ export class JsonDbService {
     try {
       if (fs.existsSync(this.dbPath)) {
         const fileContent = fs.readFileSync(this.dbPath, 'utf-8');
-        return JSON.parse(fileContent);
+        const parsed = JSON.parse(fileContent);
+        return this.migrateData(parsed);
       }
     } catch (error) {
       console.error('Error loading JSON database:', error);
+      // If file exists but failed to parse, keep it safe
+      try {
+        if (fs.existsSync(this.dbPath)) {
+          const corrupt = this.dbPath.replace(/\.json$/, `-corrupt-${Date.now()}.json`);
+          fs.renameSync(this.dbPath, corrupt);
+          console.warn(`Renamed corrupt DB to ${corrupt}`);
+        }
+      } catch {}
     }
 
     // Return default empty schema
     return {
+      schemaVersion: 2,
       tasks: {},
       milestones: {},
       settings: {},
@@ -139,11 +167,75 @@ export class JsonDbService {
   private saveData(): void {
     try {
       this.data.lastUpdated = new Date().toISOString();
-      fs.writeFileSync(this.dbPath, JSON.stringify(this.data, null, 2));
+      // Create a timestamped backup (best-effort)
+      this.rotateBackups();
+      const tmp = `${this.dbPath}.tmp`;
+      fs.writeFileSync(tmp, JSON.stringify(this.data, null, 2));
+      fs.renameSync(tmp, this.dbPath);
     } catch (error) {
       console.error('Error saving JSON database:', error);
       throw new Error('Failed to save data');
     }
+  }
+
+  private rotateBackups(maxBackups: number = 10): void {
+    try {
+      const dir = path.dirname(this.dbPath);
+      const backup = path.join(dir, `backup-${Date.now()}.json`);
+      fs.writeFileSync(backup, JSON.stringify(this.data, null, 2));
+      const backups = fs.readdirSync(dir)
+        .filter(f => f.startsWith('backup-') && f.endsWith('.json'))
+        .sort((a, b) => parseInt(b.slice(7)) - parseInt(a.slice(7)));
+      const toDelete = backups.slice(maxBackups);
+      for (const f of toDelete) {
+        try { fs.unlinkSync(path.join(dir, f)); } catch {}
+      }
+    } catch {
+      // ignore backup rotation errors
+    }
+  }
+
+  private migrateData(input: any): JsonDbSchema {
+    const data: JsonDbSchema = {
+      schemaVersion: typeof input?.schemaVersion === 'number' ? input.schemaVersion : 1,
+      tasks: input?.tasks || {},
+      milestones: input?.milestones || {},
+      settings: input?.settings || {},
+      lastUpdated: input?.lastUpdated || new Date().toISOString(),
+    };
+    // Normalize tasks shape and fill new fields
+    for (const projectId of Object.keys(data.tasks)) {
+      const list = Array.isArray(data.tasks[projectId]) ? data.tasks[projectId] : [];
+      data.tasks[projectId] = list.map((t: any) => {
+        const task: Task = {
+          id: t.id,
+          title: t.title || 'Untitled',
+          description: t.description || '',
+          status: t.status || 'todo',
+          priority: t.priority || 'medium',
+          assignee: t.assignee,
+          tags: Array.isArray(t.tags) ? t.tags : [],
+          createdAt: t.createdAt || new Date().toISOString(),
+          updatedAt: t.updatedAt || new Date().toISOString(),
+          dueDate: t.dueDate,
+          projectId: t.projectId || projectId,
+          commits: Array.isArray(t.commits) ? t.commits : [],
+          subtasks: Array.isArray(t.subtasks) ? t.subtasks : [],
+          attachments: Array.isArray(t.attachments) ? t.attachments : [],
+          issues: Array.isArray(t.issues) ? t.issues : [],
+        };
+        task.subtasks = task.subtasks.map((s: any) => ({
+          id: s.id,
+          title: s.title || 'Untitled',
+          completed: !!s.completed,
+          createdAt: s.createdAt || new Date().toISOString(),
+          commits: Array.isArray(s.commits) ? s.commits : [],
+        }));
+        return task;
+      });
+    }
+    if (data.schemaVersion < 2) data.schemaVersion = 2;
+    return data;
   }
 
   // Task operations
@@ -323,7 +415,7 @@ export class JsonDbService {
   }
 
   backup(): string {
-    const backupPath = path.join(process.cwd(), 'data', `backup-${Date.now()}.json`);
+    const backupPath = path.join(path.dirname(this.dbPath), `backup-${Date.now()}.json`);
     fs.writeFileSync(backupPath, JSON.stringify(this.data, null, 2));
     return backupPath;
   }
