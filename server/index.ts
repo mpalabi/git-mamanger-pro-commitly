@@ -58,6 +58,17 @@ fastify.register(async function (fastify) {
     return await projectService.getAllProjects();
   });
 
+  // Meta routes - useful for debugging endpoints existence
+  fastify.get('/api/meta/routes', async (request, reply) => {
+    try {
+      const routes = fastify.printRoutes();
+      reply.type('application/json');
+      return { routes };
+    } catch (e) {
+      return { routes: '' };
+    }
+  });
+
   fastify.get('/api/projects/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
     return await projectService.getProject(id);
