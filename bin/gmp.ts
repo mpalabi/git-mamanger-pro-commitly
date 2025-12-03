@@ -81,17 +81,17 @@ program
   .action(updateSelf);
 
 // Wrap core commands to show update notice after execution
-program.commands.forEach((cmd) => {
-  const name = cmd.name();
-  if (['init','start','stop','status','list','remove'].includes(name)) {
-    const original = (cmd as any)._actionHandler;
-    if (original) {
-      cmd.action(async (...args: any[]) => {
-        await original(...args);
-        await checkForUpdates();
-      });
-    }
-  }
-});
+// program.commands.forEach((cmd) => {
+//   const name = cmd.name();
+//   if (['init','start','stop','status','list','remove'].includes(name)) {
+//     const original = (cmd as any)._actionHandler;
+//     if (original) {
+//       cmd.action(async (options: any) => {
+//         await original(options);
+//         await checkForUpdates();
+//       });
+//     }
+//   }
+// });
 
 program.parse();
