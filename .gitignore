@@ -99,3 +99,4 @@ Thumbs.db
 # Git Manager Pro specific
 .gmp/
 *.log
+data/
