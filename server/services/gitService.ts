@@ -118,9 +118,11 @@ export class GitService {
     }
   }
 
-  async getRecentCommits(limit: number = 10): Promise<GitCommit[]> {
+  async getRecentCommits(limit: number = 10, includeAllBranches: boolean = false): Promise<GitCommit[]> {
     try {
-      const log = await this.git.log({ maxCount: limit });
+      const log = includeAllBranches
+        ? await this.git.log(['--all', `--max-count=${limit}`])
+        : await this.git.log({ maxCount: limit });
       
       const currentBranch = await this.getCurrentBranch();
       return log.all.map(commit => ({
@@ -128,7 +130,7 @@ export class GitService {
         message: commit.message,
         author: commit.author_name,
         date: commit.date,
-        branch: currentBranch,
+        branch: (commit.refs || '').split(',')[0]?.trim() || currentBranch,
         files: commit.diff?.files?.map(file => file.file) || []
       }));
     } catch (error) {
@@ -161,7 +163,24 @@ export class GitService {
 
   async checkoutBranch(branchName: string): Promise<void> {
     try {
-      await this.git.checkout(branchName);
+      const isRemoteRef = branchName.startsWith('remotes/') || branchName.startsWith('origin/');
+      if (!isRemoteRef) {
+        await this.git.checkout(branchName);
+        return;
+      }
+
+      const remoteRef = branchName.startsWith('remotes/')
+        ? branchName.replace(/^remotes\//, '')
+        : branchName;
+      const localName = remoteRef.includes('/') ? remoteRef.split('/').slice(1).join('/') : remoteRef;
+
+      const localBranches = await this.git.branchLocal();
+      if (localBranches.all.includes(localName)) {
+        await this.git.checkout(localName);
+        return;
+      }
+
+      await this.git.checkout(['-b', localName, '--track', remoteRef]);
     } catch (error) {
       throw new Error(`Failed to checkout branch: ${branchName}`);
     }
@@ -246,6 +265,16 @@ export class GitService {
       return await this.git.diff(['--cached']);
     } catch (error) {
       throw new Error('Failed to get staged diff');
+    }
+  }
+
+  async getRepositoryStartDate(): Promise<string | null> {
+    try {
+      const firstCommitDate = await this.git.raw(['log', '--reverse', '--format=%aI', '--max-count=1']);
+      const value = firstCommitDate.trim();
+      return value || null;
+    } catch (error) {
+      return null;
     }
   }
 }

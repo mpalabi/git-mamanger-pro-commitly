@@ -80,6 +80,70 @@
   @apply mt-1;
 }
 
+/* Rich text editor (TipTap) writing feel */
+.rte-content .ProseMirror {
+  min-height: 220px;
+  padding: 0.5rem;
+  outline: none;
+  line-height: 1.6;
+}
+
+.rte-content .ProseMirror p {
+  margin: 0.6rem 0;
+}
+
+.rte-content .ProseMirror h1,
+.rte-content .ProseMirror h2,
+.rte-content .ProseMirror h3 {
+  margin: 0.75rem 0 0.4rem;
+}
+
+.rte-content .ProseMirror ul,
+.rte-content .ProseMirror ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+  list-style-position: outside;
+}
+
+.rte-content .ProseMirror li {
+  display: list-item;
+}
+
+.rte-content .ProseMirror li > p {
+  margin: 0;
+}
+
+.rte-content .ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+
+.rte-content .ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.rte-content .ProseMirror ul[data-type="taskList"] li > p {
+  margin: 0;
+}
+
+.rte-content .ProseMirror blockquote {
+  margin: 0.6rem 0;
+}
+
+.rte-content .ProseMirror pre {
+  margin: 0.6rem 0;
+}
+
+.rte-content .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+  height: 0;
+}
+
 /* Line clamp utility */
 .line-clamp-2 {
   display: -webkit-box;

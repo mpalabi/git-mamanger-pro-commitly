@@ -153,8 +153,10 @@ fastify.register(async function (fastify) {
 
   fastify.get('/api/projects/:id/git/commits', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const { limit = 10 } = request.query as { limit?: number };
-    return await projectService.getCommits(id, limit);
+    const { limit = 10, all } = request.query as { limit?: number | string; all?: boolean | string };
+    const parsedLimit = typeof limit === 'string' ? parseInt(limit, 10) : limit;
+    const includeAllBranches = typeof all === 'string' ? all === 'true' || all === '1' : !!all;
+    return await projectService.getCommits(id, Number.isFinite(parsedLimit as number) ? (parsedLimit as number) : 10, includeAllBranches);
   });
 
   fastify.post('/api/projects/:id/git/checkout', async (request, reply) => {

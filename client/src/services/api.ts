@@ -29,6 +29,7 @@ export interface Project {
   gitProvider: 'github' | 'gitlab' | 'bitbucket' | 'other';
   remoteUrl: string | null;
   currentBranch: string;
+  startedAt: string | null;
   lastSync: string;
   status: {
     isClean: boolean;
@@ -88,9 +89,9 @@ export const api = {
     return response.data;
   },
 
-  async getCommits(id: string, limit: number = 10): Promise<GitCommit[]> {
+  async getCommits(id: string, limit: number = 10, options?: { all?: boolean }): Promise<GitCommit[]> {
     const response = await apiClient.get(`/projects/${id}/git/commits`, {
-      params: { limit }
+      params: { limit, all: options?.all ?? false }
     });
     return response.data;
   },

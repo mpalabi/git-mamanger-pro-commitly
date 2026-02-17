@@ -1,7 +1,8 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
+import Link from '@tiptap/extension-link';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
@@ -12,9 +13,6 @@ import {
   Italic, 
   Strikethrough, 
   Code, 
-  Heading1, 
-  Heading2, 
-  Heading3,
   List,
   ListOrdered,
   Quote,
@@ -44,11 +42,12 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     extensions: [
       StarterKit.configure({
         codeBlock: false,
-        link: {
-          openOnClick: false,
-          HTMLAttributes: {
-            class: 'text-blue-500 underline cursor-pointer',
-          },
+      }),
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        HTMLAttributes: {
+          class: 'text-primary underline cursor-pointer',
         },
       }),
       Placeholder.configure({
@@ -68,6 +67,15 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
       onChange?.(editor.getHTML());
     },
   });
+
+  useEffect(() => {
+    if (!editor) return;
+    const current = editor.getHTML();
+    const next = content || '';
+    if (current !== next) {
+      editor.commands.setContent(next, { emitUpdate: false });
+    }
+  }, [content, editor]);
 
   const setLink = useCallback(() => {
     const previousUrl = editor?.getAttributes('link').href;
@@ -93,18 +101,21 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     onClick, 
     isActive = false, 
     children, 
-    title 
+    title,
+    disabled = false,
   }: { 
     onClick: () => void; 
     isActive?: boolean; 
     children: React.ReactNode; 
     title: string;
+    disabled?: boolean;
   }) => (
     <button
       onClick={onClick}
-      className={`p-2 rounded hover:bg-accent transition-colors ${
-        isActive ? 'bg-accent' : ''
-      }`}
+      disabled={disabled}
+      className={`inline-flex h-9 min-w-9 items-center justify-center rounded-md px-2 text-sm font-medium transition-colors ${
+        isActive ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+      } disabled:cursor-not-allowed disabled:opacity-40`}
       title={title}
     >
       {children}
@@ -112,9 +123,9 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   );
 
   return (
-    <div className={`border border-border rounded-lg ${className}`}>
+    <div className={`rounded-xl border border-border bg-card ${className}`}>
       {editable && (
-        <div className="border-b border-border p-2 flex flex-wrap gap-1">
+        <div className="border-b border-border p-2.5 flex flex-wrap items-center gap-1.5">
           <MenuButton
             onClick={() => editor.chain().focus().toggleBold().run()}
             isActive={editor.isActive('bold')}
@@ -154,7 +165,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             isActive={editor.isActive('heading', { level: 1 })}
             title="Heading 1"
           >
-            <Heading1 className="h-4 w-4" />
+            H1
           </MenuButton>
           
           <MenuButton
@@ -162,7 +173,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             isActive={editor.isActive('heading', { level: 2 })}
             title="Heading 2"
           >
-            <Heading2 className="h-4 w-4" />
+            H2
           </MenuButton>
           
           <MenuButton
@@ -170,7 +181,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             isActive={editor.isActive('heading', { level: 3 })}
             title="Heading 3"
           >
-            <Heading3 className="h-4 w-4" />
+            H3
           </MenuButton>
 
           <div className="w-px h-6 bg-border mx-1" />
@@ -230,6 +241,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           <MenuButton
             onClick={() => editor.chain().focus().undo().run()}
             title="Undo"
+            disabled={!editor.can().chain().focus().undo().run()}
           >
             <Undo className="h-4 w-4" />
           </MenuButton>
@@ -237,16 +249,17 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           <MenuButton
             onClick={() => editor.chain().focus().redo().run()}
             title="Redo"
+            disabled={!editor.can().chain().focus().redo().run()}
           >
             <Redo className="h-4 w-4" />
           </MenuButton>
         </div>
       )}
       
-      <div className="p-4">
+      <div className="p-3">
         <EditorContent 
           editor={editor} 
-          className="prose prose-sm max-w-none focus:outline-none"
+          className="rte-content prose prose-sm max-w-none focus:outline-none"
         />
       </div>
     </div>

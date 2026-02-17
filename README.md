@@ -52,6 +52,19 @@ git-manager-pro/
 - **File Watching**: Automatic detection of git changes
 - **TypeScript**: Full type safety across the entire codebase
 
+## 📝 Product Review: Latest Feature Drop
+
+This release focuses on making day-to-day repository work faster inside the project detail workspace.
+
+- **Redesigned Project Workspace**: The project view now has a clearer layout with dedicated tabs for Overview, Tasks, Commits, Diffs, Metrics, and Settings.
+- **Smarter Branch Switching**: Branch selection now handles both local and remote refs more reliably, including remote-tracking checkout behavior.
+- **Project Timeline Context**: Each project now surfaces a repository start date so users can quickly understand history at a glance.
+- **Contributor Insights**: The Overview tab includes a contribution heatmap, year/month filters, and contributor activity summaries.
+- **Live Activity Panel**: Recent commit activity and repository context are easier to scan from the right-side activity rail.
+- **Task-to-Commit Deep Dive**: In task linking, users can open a focused diff for a single commit and then return to multi-commit selection.
+- **Improved Rich Text Editing**: Notes and task descriptions now have better writing ergonomics, link support, synced editor state, and safer undo/redo controls.
+- **Expanded Commit API Support**: Commit queries now support all-branch views (`all=true`) for broader project analysis in the UI.
+
 ## 📦 Installation
 
 ```bash

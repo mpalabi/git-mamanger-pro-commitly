@@ -10,6 +10,7 @@ export interface ProjectInfo {
   gitProvider: 'github' | 'gitlab' | 'bitbucket' | 'other';
   remoteUrl: string | null;
   currentBranch: string;
+  startedAt: string | null;
   lastSync: string;
   status: GitStatus;
   metadata: {
@@ -62,6 +63,7 @@ export class ProjectService {
       const remoteUrl = await gitService.getRemoteUrl();
       const status = await gitService.getStatus();
       const commits = await gitService.getRecentCommits(1);
+      const repoStartedAt = await gitService.getRepositoryStartDate();
 
       // Load project config
       const projectConfig = await this.loadProjectConfig(project.path);
@@ -73,6 +75,7 @@ export class ProjectService {
         gitProvider: projectConfig?.gitProvider || 'other',
         remoteUrl,
         currentBranch,
+        startedAt: repoStartedAt || project.addedAt || null,
         lastSync: new Date().toISOString(),
         status,
         metadata: {
@@ -111,14 +114,14 @@ export class ProjectService {
     return await gitService.getBranches(includeRemotes);
   }
 
-  async getCommits(projectId: string, limit: number = 10): Promise<GitCommit[]> {
+  async getCommits(projectId: string, limit: number = 10, includeAllBranches: boolean = false): Promise<GitCommit[]> {
     const project = await this.configManager.getProjectById(projectId);
     if (!project) {
       throw new Error('Project not found');
     }
 
     const gitService = new GitService(project.path);
-    return await gitService.getRecentCommits(limit);
+    return await gitService.getRecentCommits(limit, includeAllBranches);
   }
 
   async checkoutBranch(projectId: string, branchName: string): Promise<void> {

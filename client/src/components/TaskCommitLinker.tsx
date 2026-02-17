@@ -25,6 +25,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../services/api';
 import { Task } from '../types';
 import { TaskModal } from './TaskModal';
+import { CodeDiffViewer } from './CodeDiffViewer';
 
 interface TaskCommitLinkerProps {
   projectId: string;
@@ -41,6 +42,7 @@ export const TaskCommitLinker: React.FC<TaskCommitLinkerProps> = ({ projectId })
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
   const [showCombinedDiff, setShowCombinedDiff] = useState(false);
   const [combinedDiffs, setCombinedDiffs] = useState<any[]>([]);
+  const [focusedCommitHash, setFocusedCommitHash] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
 
@@ -60,6 +62,17 @@ export const TaskCommitLinker: React.FC<TaskCommitLinkerProps> = ({ projectId })
   const { data: project } = useQuery({
     queryKey: ['project', projectId],
     queryFn: () => api.getProject(projectId),
+  });
+
+  // Fetch focused commit diff
+  const {
+    data: focusedCommitDiffs = [],
+    isLoading: focusedCommitDiffsLoading,
+    isError: focusedCommitDiffsError
+  } = useQuery({
+    queryKey: ['commit-diff', projectId, focusedCommitHash],
+    queryFn: () => api.getCommitDiff(projectId, focusedCommitHash!),
+    enabled: !!focusedCommitHash,
   });
 
   // Link commit to task mutation
@@ -448,7 +461,7 @@ export const TaskCommitLinker: React.FC<TaskCommitLinkerProps> = ({ projectId })
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          // TODO: Show commit diff
+                          setFocusedCommitHash(commit.hash);
                         }}
                         className="p-1.5 text-muted-foreground hover:bg-accent rounded-md border border-border hover:border-accent transition-all"
                         title="View diff"
@@ -483,7 +496,50 @@ export const TaskCommitLinker: React.FC<TaskCommitLinkerProps> = ({ projectId })
 
         {/* Diffs Content */}
         <div className="flex-1 p-4">
-          {selectedCommits.length > 0 ? (
+          {focusedCommitHash ? (
+            <div className="space-y-4 h-full overflow-y-auto">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
+                  Showing diff for commit <span className="font-mono">{focusedCommitHash.substring(0, 7)}</span>
+                </div>
+                <button
+                  onClick={() => setFocusedCommitHash(null)}
+                  className="px-3 py-1.5 text-xs bg-background text-foreground rounded-md border border-input hover:bg-accent"
+                >
+                  Back to Selection
+                </button>
+              </div>
+
+              {focusedCommitDiffsLoading && (
+                <div className="text-center text-muted-foreground py-8">
+                  <FileText className="h-12 w-12 mx-auto mb-3 opacity-50 animate-pulse" />
+                  <p>Loading commit diff...</p>
+                </div>
+              )}
+
+              {focusedCommitDiffsError && (
+                <div className="text-center text-red-400 py-8">
+                  <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>Failed to load commit diff</p>
+                </div>
+              )}
+
+              {!focusedCommitDiffsLoading && !focusedCommitDiffsError && focusedCommitDiffs.length > 0 && (
+                <CodeDiffViewer
+                  diffs={focusedCommitDiffs}
+                  commitHash={focusedCommitHash}
+                  className="h-full"
+                />
+              )}
+
+              {!focusedCommitDiffsLoading && !focusedCommitDiffsError && focusedCommitDiffs.length === 0 && (
+                <div className="text-center text-muted-foreground py-8">
+                  <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>No diff content available for this commit</p>
+                </div>
+              )}
+            </div>
+          ) : selectedCommits.length > 0 ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="text-sm text-muted-foreground">
