@@ -28,19 +28,27 @@ export async function start(options: StartOptions): Promise<void> {
       return;
     }
 
-    // Ensure server build exists and is up to date
+    // Ensure server build exists and is up to date in dev mode.
+    // In published installs, source TS files are not present, so we must
+    // run directly from dist and never require a local TypeScript toolchain.
     const distServerPath = path.join(__dirname, '../../server/index.js');
     const srcServerPath = path.join(__dirname, '../../../server/index.ts');
-    let needsBuild = false;
-    try {
+    const sourceExists = fs.existsSync(srcServerPath);
+    const distExists = fs.existsSync(distServerPath);
+    let needsBuild = sourceExists && !distExists;
+
+    if (sourceExists && distExists) {
       const distStat = fs.statSync(distServerPath);
       const srcStat = fs.statSync(srcServerPath);
       if (srcStat.mtimeMs > distStat.mtimeMs) {
         needsBuild = true;
       }
-    } catch {
-      needsBuild = true;
     }
+
+    if (!distExists && !sourceExists) {
+      throw new Error('Server build not found. Please reinstall git-manager-pro.');
+    }
+
     if (needsBuild) {
       spinner.text = 'Building server...';
       await new Promise<void>((resolve, reject) => {
